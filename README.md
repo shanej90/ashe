@@ -6,8 +6,8 @@ This is a personal data project to get [Office for National Statistics](https://
 
 The process I have taken is:
 
-- Download data as Excel files from the ONS website, using the ONS API (via Python) to get the data
-- Rather than use the trendy new 'ELT' process, instead I stick with old-fashioned 'ETL' as sqlite is not a data lake and doesn't have the tools the automate data manipulation, nor do so efficiently as could be done via Python.
+- Download data as Excel/.csv files from the ONS website, using the ONS API (via Python) to get the data
+- Rather than use the trendy new 'ELT' process, instead I stick with old-fashioned 'ETL' as sqlite is not a data lake and doesn't have the tools the automate data manipulation, nor do so efficiently as could be done via Python. These files are saved locally.
 - The manipulated data is then loaded as tables (kind of like 'silver' tables in a data lake) to the sqlite database.
 - 'Gold'-style dimension and fact views are then created in sqlite and deployed to Power BI.
 
