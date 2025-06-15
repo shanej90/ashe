@@ -145,6 +145,40 @@ def get_versions_from_datasets(
     #return
     return pd.concat(version_items, ignore_index = True)
     
+#download observations from versions
+def download_observations_from_versions(version_id: str, source_df: pd.DataFrame) -> pd.DataFrame:
+    
+    #filter to pertinent version
+    source_df = source_df[source_df["id"] == version_id]
+    
+    #get downloads
+    downloads = source_df["downloads"].apply(pd.Series)
+    downloads = pd.concat([source_df.drop(columns = "downloads"), downloads], axis = 1)
+    downloads = downloads[~downloads["csv"].isna()]
+    
+    #extract hrefs
+    hrefs = [d["href"] for d in downloads["csv"]]
+    
+    #dataset ids
+    dataset_ids = downloads["dataset_id"].tolist()
+    
+    #versions
+    versions = downloads["version"].tolist()
+    
+    #download each csv
+    for i in range(len(hrefs)):
+        try:
+            resp = requests.get(hrefs[i])
+            if resp.status_code == 200:
+                #construct save path
+                save_path = f"bronze-files/{dataset_ids[i]}_{versions[i]}.csv"
+                #write file
+                with open(save_path, "wb") as f:
+                    f.write(resp.content)
+            else:
+                raise Exception(f"Failed to download CSV from {hrefs[i]}. Status code: {resp.status_code}")
+        except:
+            raise Exception("Failed to connect to ONS API endpoint. Please check the URL or your internet connection.")
     
     
     
