@@ -148,6 +148,28 @@ def get_versions_from_datasets(
 #download observations from versions
 def download_observations_from_versions(version_id: str, source_df: pd.DataFrame) -> pd.DataFrame:
     
+    """
+    Downloads CSV observation files for a specific version from a provided DataFrame of dataset metadata.
+
+    This function filters the input DataFrame to rows matching the given `version_id`, extracts download
+    URLs from the "downloads" column (assumed to contain nested dictionaries), and attempts to download
+    the associated CSV files. Downloaded files are saved to the local `bronze-files/` directory, named 
+    according to the format `{dataset_id}_{version}.csv`.
+
+    Parameters:
+        version_id (str): The ID of the version to filter and download observations for.
+        source_df (pd.DataFrame): A DataFrame containing metadata including "id", "downloads", 
+                                  "dataset_id", and "version" columns. The "downloads" column is 
+                                  expected to contain dictionaries with a "csv" key that includes a "href".
+
+    Returns:
+        pd.DataFrame: The filtered and flattened DataFrame used for downloading, including dataset ID,
+                      version, and CSV download information.
+
+    Raises:
+        Exception: If a file fails to download due to a bad response or a connection error.
+    """
+    
     #filter to pertinent version
     source_df = source_df[source_df["id"] == version_id]
     
@@ -179,6 +201,71 @@ def download_observations_from_versions(version_id: str, source_df: pd.DataFrame
                 raise Exception(f"Failed to download CSV from {hrefs[i]}. Status code: {resp.status_code}")
         except:
             raise Exception("Failed to connect to ONS API endpoint. Please check the URL or your internet connection.")
+    
+#download observations from versions
+def download_dimensions_from_versions(version_id: str, source_df: pd.DataFrame) -> pd.DataFrame:  
+    
+    #filter to pertinent version
+    source_df = source_df[source_df["id"] == version_id]
+    
+    #get dimensions
+    dimensions = source_df.explode("dimensions")
+    dimensions = dimensions["dimensions"].apply(pd.Series)
+    
+    #extract hrefs
+    hrefs = dimensions["href"].tolist()
+    
+    #query
+    responses = [requests.get(h) for h in hrefs]
+    resp_json = [r.json() for r in responses]
+    
+    #turn to dfs
+    resp_dfs = [pd.DataFrame(r) for r in resp_json]
+    
+    #create 'editions' dfs and concat
+    edition_dfs = [r.loc[["editions"]] for r in resp_dfs]
+    edition_df = pd.concat(edition_dfs, ignore_index = True)
+    
+    #get links
+    links = edition_df["links"].apply(pd.Series)
+    
+    #...then get hrefs 
+    link_hrefs = links["href"].tolist()
+    
+    #request them
+    link_responses = [query_ons_api(l) for l in link_hrefs]
+    
+    #get items and save as df
+    link_dfs = [pd.DataFrame(l["items"]) for l in link_responses]
+    link_df = pd.concat(link_dfs, ignore_index = True)
+    
+    #...and now you need to get dim link dicts
+    dim_link_dicts = link_df["links"]
+    
+    #then get hrefs for codes
+    code_hrefs = [d["codes"]["href"] for d in dim_link_dicts]
+    
+    #query hrefs
+    code_resp = [query_ons_api(c) for c in code_hrefs]
+    
+    #items
+    code_items = [pd.DataFrame(c["items"]) for c in code_resp]
+    code_items = [c.drop(labels = "links", axis = 1) for c in code_items]
+    
+    #dim names
+    dim_names = [c.split("/") for c in code_hrefs]
+    dim_names = [d[5] for d in dim_names]
+
+    #write csv
+    for i in range(len(code_items)):
+        
+        #create save path
+        save_path = f"bronze-files/{dim_names[i]}.csv"
+        
+        #save
+        code_items[i].to_csv(path = save_path, index = False)   
+    
+    
     
     
     
