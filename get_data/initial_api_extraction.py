@@ -5,6 +5,8 @@
 import pandas as pd
 import requests
 
+from ..utils.directory_navigation import find_project_root
+
 ### Generic query of ons api
 def query_ons_api(url: str) -> dict:
     
@@ -188,12 +190,13 @@ def download_observations_from_versions(version_id: str, source_df: pd.DataFrame
     versions = downloads["version"].tolist()
     
     #download each csv
+    root = find_project_root() 
     for i in range(len(hrefs)):
         try:
             resp = requests.get(hrefs[i])
             if resp.status_code == 200:
                 #construct save path
-                save_path = f"bronze_files/{dataset_ids[i]}_{versions[i]}.csv"
+                save_path = f"{root}/bronze_files/{dataset_ids[i]}_{versions[i]}.csv"
                 #write file
                 with open(save_path, "wb") as f:
                     f.write(resp.content)
@@ -282,10 +285,11 @@ def download_dimensions_from_versions(version_id: str, source_df: pd.DataFrame) 
     dim_names = [d[5] for d in dim_names]
 
     #write csv
+    root = find_project_root()
     for i in range(len(code_items)):
         
         #create save path
-        save_path = f"bronze_files/{dim_names[i]}.csv"
+        save_path = f"{root}/bronze_files/{dim_names[i]}.csv"
         
         #save
         code_items[i].to_csv(path = save_path, index = False)   
