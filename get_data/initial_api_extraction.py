@@ -153,7 +153,7 @@ def download_observations_from_versions(version_id: str, source_df: pd.DataFrame
 
     This function filters the input DataFrame to rows matching the given `version_id`, extracts download
     URLs from the "downloads" column (assumed to contain nested dictionaries), and attempts to download
-    the associated CSV files. Downloaded files are saved to the local `bronze-files/` directory, named 
+    the associated CSV files. Downloaded files are saved to the local `bronze_files/` directory, named 
     according to the format `{dataset_id}_{version}.csv`.
 
     Parameters:
@@ -193,7 +193,7 @@ def download_observations_from_versions(version_id: str, source_df: pd.DataFrame
             resp = requests.get(hrefs[i])
             if resp.status_code == 200:
                 #construct save path
-                save_path = f"bronze-files/{dataset_ids[i]}_{versions[i]}.csv"
+                save_path = f"bronze_files/{dataset_ids[i]}_{versions[i]}.csv"
                 #write file
                 with open(save_path, "wb") as f:
                     f.write(resp.content)
@@ -204,6 +204,31 @@ def download_observations_from_versions(version_id: str, source_df: pd.DataFrame
     
 #download observations from versions
 def download_dimensions_from_versions(version_id: str, source_df: pd.DataFrame) -> pd.DataFrame:  
+    
+    """
+    Downloads and saves dimension data related to a specific dataset version from the ONS API.
+
+    This function performs the following steps:
+    1. Filters the provided DataFrame to the row matching the specified version ID.
+    2. Extracts dimension metadata and obtains associated URLs.
+    3. Queries each dimension URL to retrieve JSON metadata.
+    4. Extracts edition data from each dimension and queries further links.
+    5. Retrieves final dimension codes from linked resources.
+    6. Saves each dimension's code list as a CSV file in the `bronze_files/` directory,
+       using the dimension name as the filename.
+
+    Parameters:
+        version_id (str): The ID of the dataset version to retrieve dimensions for.
+        source_df (pd.DataFrame): A DataFrame containing metadata with 'id' and 'dimensions' columns.
+
+    Returns:
+        pd.DataFrame: A concatenated DataFrame of all retrieved dimension codes,
+                      with one row per code item.
+
+    Notes:
+        - Requires internet access to fetch data from external ONS API endpoints.
+        - Saves output files to disk in the `bronze_files/` directory.
+    """
     
     #filter to pertinent version
     source_df = source_df[source_df["id"] == version_id]
@@ -260,7 +285,7 @@ def download_dimensions_from_versions(version_id: str, source_df: pd.DataFrame) 
     for i in range(len(code_items)):
         
         #create save path
-        save_path = f"bronze-files/{dim_names[i]}.csv"
+        save_path = f"bronze_files/{dim_names[i]}.csv"
         
         #save
         code_items[i].to_csv(path = save_path, index = False)   

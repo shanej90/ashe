@@ -3,5 +3,5 @@
 *.xlsx
 *.xls
 *.db
-bronze-files/*
+bronze_files/*
 **/__pycache__/
