@@ -148,7 +148,7 @@ def get_versions_from_datasets(
     return pd.concat(version_items, ignore_index = True)
     
 #download observations from versions
-def download_observations_from_versions(version_id: str, source_df: pd.DataFrame) -> pd.DataFrame:
+def download_observations_from_versions(version_id: str, source_df: pd.DataFrame):
     
     """
     Downloads CSV observation files for a specific version from a provided DataFrame of dataset metadata.
