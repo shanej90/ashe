@@ -5,7 +5,7 @@
 import pandas as pd
 import requests
 
-from ..utils.directory_navigation import find_project_root
+from utils.directory_navigation import find_project_root
 
 ### Generic query of ons api
 def query_ons_api(url: str) -> dict:
@@ -206,93 +206,74 @@ def download_observations_from_versions(version_id: str, source_df: pd.DataFrame
             raise Exception("Failed to connect to ONS API endpoint. Please check the URL or your internet connection.")
     
 #download observations from versions
-def download_dimensions_from_versions(version_id: str, source_df: pd.DataFrame) -> pd.DataFrame:  
+def download_dimensions_from_versions(source_df: pd.DataFrame):  
     
     """
-    Downloads and saves dimension data related to a specific dataset version from the ONS API.
+    Downloads and saves unique dimension data across all dataset versions from the ONS API.
 
-    This function performs the following steps:
-    1. Filters the provided DataFrame to the row matching the specified version ID.
-    2. Extracts dimension metadata and obtains associated URLs.
-    3. Queries each dimension URL to retrieve JSON metadata.
-    4. Extracts edition data from each dimension and queries further links.
-    5. Retrieves final dimension codes from linked resources.
-    6. Saves each dimension's code list as a CSV file in the `bronze_files/` directory,
-       using the dimension name as the filename.
+    This function:
+    1. Iterates through all version IDs in source_df.
+    2. Collects all dimension 'code' hrefs, ensuring no duplicates.
+    3. Queries each unique 'code' href to fetch dimension codes.
+    4. Saves each dimension's code list as a CSV file.
 
     Parameters:
-        version_id (str): The ID of the dataset version to retrieve dimensions for.
-        source_df (pd.DataFrame): A DataFrame containing metadata with 'id' and 'dimensions' columns.
+        source_df (pd.DataFrame): A DataFrame with 'id' and 'dimensions' columns.
 
     Returns:
-        pd.DataFrame: A concatenated DataFrame of all retrieved dimension codes,
-                      with one row per code item.
-
-    Notes:
-        - Requires internet access to fetch data from external ONS API endpoints.
-        - Saves output files to disk in the `bronze_files/` directory.
+        pd.DataFrame: A concatenated DataFrame of all retrieved dimension codes.
     """
+    #dict to all hold code refs
+    all_code_hrefs = {}
     
-    #filter to pertinent version
-    source_df = source_df[source_df["id"] == version_id]
-    
-    #get dimensions
-    dimensions = source_df.explode("dimensions")
-    dimensions = dimensions["dimensions"].apply(pd.Series)
-    
-    #extract hrefs
-    hrefs = dimensions["href"].tolist()
-    
-    #query
-    responses = [requests.get(h) for h in hrefs]
-    resp_json = [r.json() for r in responses]
-    
-    #turn to dfs
-    resp_dfs = [pd.DataFrame(r) for r in resp_json]
-    
-    #create 'editions' dfs and concat
-    edition_dfs = [r.loc[["editions"]] for r in resp_dfs]
-    edition_df = pd.concat(edition_dfs, ignore_index = True)
-    
-    #get links
-    links = edition_df["links"].apply(pd.Series)
-    
-    #...then get hrefs 
-    link_hrefs = links["href"].tolist()
-    
-    #request them
-    link_responses = [query_ons_api(l) for l in link_hrefs]
-    
-    #get items and save as df
-    link_dfs = [pd.DataFrame(l["items"]) for l in link_responses]
-    link_df = pd.concat(link_dfs, ignore_index = True)
-    
-    #...and now you need to get dim link dicts
-    dim_link_dicts = link_df["links"]
-    
-    #then get hrefs for codes
-    code_hrefs = [d["codes"]["href"] for d in dim_link_dicts]
-    
-    #query hrefs
-    code_resp = [query_ons_api(c) for c in code_hrefs]
-    
-    #items
-    code_items = [pd.DataFrame(c["items"]) for c in code_resp]
-    code_items = [c.drop(labels = "links", axis = 1) for c in code_items]
-    
-    #dim names
-    dim_names = [c.split("/") for c in code_hrefs]
-    dim_names = [d[5] for d in dim_names]
+    #loop through each version id
+    for version_id in source_df["id"].unique():
+        version_df = source_df[source_df["id"] == version_id]
+        if version_df.empty:
+            print(f"[WARNING] No data for version_id: {version_id}")
+            continue
 
-    #write csv
+        #explode the resulting dimensions df and extract hrefs from it
+        dimensions = version_df.explode("dimensions")["dimensions"].apply(pd.Series)
+        if dimensions.empty:
+            print(f"[WARNING] No dimensions extracted for version_id: {version_id}")
+            continue
+
+        hrefs = dimensions["href"].dropna().unique().tolist()
+
+        #query hrefs and get edition dfs in return
+        resp_json = [requests.get(h).json() for h in hrefs]
+        resp_dfs = [pd.DataFrame(r) for r in resp_json]
+        edition_dfs = [r.loc[["editions"]] for r in resp_dfs if "editions" in r.index]
+        
+        #extract links from each edition df
+        edition_df = pd.concat(edition_dfs, ignore_index=True)
+        links = edition_df["links"].apply(pd.Series)
+        link_hrefs = links["href"].dropna().tolist()
+
+        link_responses = [query_ons_api(l) for l in link_hrefs]
+        link_items = [pd.DataFrame(l["items"]) for l in link_responses if "items" in l]
+
+        link_df = pd.concat(link_items, ignore_index=True)
+        dim_link_dicts = link_df["links"]
+
+        for idx, d in enumerate(dim_link_dicts):
+            try:
+                code_href = d["codes"]["href"]
+                dim_name = code_href.split("/")[5]
+                all_code_hrefs[code_href] = dim_name
+            except Exception as e:
+                print(f"[WARNING] Skipping invalid link dict at index {idx}: {e}")
+
+    #save outputs
     root = find_project_root()
-    for i in range(len(code_items)):
-        
-        #create save path
-        save_path = f"{root}/bronze_files/{dim_names[i]}.csv"
-        
-        #save
-        code_items[i].to_csv(path = save_path, index = False)   
+
+    for href, dim_name in all_code_hrefs.items():
+        code_data = query_ons_api(href)
+
+        df = pd.DataFrame(code_data["items"]).drop(columns = "links", errors = "ignore")
+        df["dimension"] = dim_name
+        df.to_csv(f"{root}/bronze_files/{dim_name}.csv", index = False)
     
     
     

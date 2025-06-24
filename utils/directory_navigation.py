@@ -30,7 +30,7 @@ def find_project_root(marker_folder = "bronze_files"):
     
     while True:
         path = os.path.dirname(path)
-        if os.path.exists(os.path.join(path, marker)):
+        if os.path.exists(os.path.join(path, marker_folder)):
             return path
         if path == os.path.dirname(path):  # Reached root of filesystem
             raise RuntimeError("Project root not found. Please ensure specified marker folder exists.")
