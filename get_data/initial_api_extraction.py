@@ -275,6 +275,50 @@ def download_dimensions_from_versions(source_df: pd.DataFrame):
         df["dimension"] = dim_name
         df.to_csv(f"{root}/bronze_files/{dim_name}.csv", index = False)
     
+#download inflation
+def download_inflation(dataset_id = "cpih01"):     
+    
+    #dataset df
+    dataset_json = get_ashe_datasets(search_terms = "inflation") 
+    dataset_df = pd.DataFrame(dataset_json)
+    
+    #cpih df
+    cpih_df = dataset_df[dataset_df["id"] == dataset_id]
+    
+    #cpih links
+    links = cpih_df["links"].apply(pd.Series) #turn links dict into a df
+    links_df = pd.concat([cpih_df.drop(columns = "links"), links], axis = 1) #replace links dict with above df
+    
+    #latest
+    latest_url = links["latest_version"].tolist()[0]["href"]
+    
+    #query
+    try:
+        cpih_resp = requests.get(latest_url)
+    except:
+        raise Exception("Failed to connect to ONS API endpoint for latest version. Please check the URL or your internet connection.")
+    
+    if cpih_resp.status_code != 200:
+        raise Exception(f"Error: Status code: {cpih_resp.status_code} when requesting latest version.")
+        
+    #download url
+    download_url = cpih_resp.json().get("downloads").get("csv").get("href")
+    
+    #save outputs
+    root = find_project_root()
+    
+    try:
+        resp = requests.get(download_url)
+        if resp.status_code == 200:
+            #construct save path
+            save_path = f"{root}/bronze_files/cpih.csv"
+            #write file
+            with open(save_path, "wb") as f:
+                f.write(resp.content)
+        else:
+            raise Exception(f"Failed to download CPIH csv. Status code: {resp.status_code}")
+    except:
+        raise Exception("Failed to connect to ONS API endpoint for CPIH csv download. Please check the URL or your internet connection.")   
     
     
     
