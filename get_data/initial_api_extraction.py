@@ -278,6 +278,27 @@ def download_dimensions_from_versions(source_df: pd.DataFrame):
 #download inflation
 def download_inflation(dataset_id = "cpih01"):     
     
+    """
+    Downloads the latest version of an inflation dataset from the UK Office for National Statistics (ONS) API.
+
+    This function searches for inflation-related datasets using the ASHE (Annual Survey of Hours and Earnings)
+    API, identifies the dataset matching the specified `dataset_id`, retrieves its latest version URL, and downloads
+    the corresponding CSV file. The CSV is saved to the `bronze_files` directory at the project root as `cpih.csv`.
+
+    Args:
+        dataset_id (str): The unique identifier of the inflation dataset to download.
+                          Defaults to "cpih01", which typically corresponds to the Consumer Prices Index
+                          including owner occupiers’ housing costs (CPIH).
+
+    Raises:
+        Exception: If the dataset metadata cannot be retrieved.
+        Exception: If the API request for the latest dataset version fails.
+        Exception: If the CSV file cannot be downloaded or saved.
+
+    Returns:
+        None
+    """
+    
     #dataset df
     dataset_json = get_ashe_datasets(search_terms = "inflation") 
     dataset_df = pd.DataFrame(dataset_json)
