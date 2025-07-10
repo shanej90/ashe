@@ -4,6 +4,7 @@
 
 import pandas as pd
 import requests
+import time
 
 from utils.directory_navigation import find_project_root
 
@@ -144,8 +145,11 @@ def get_versions_from_datasets(
     #extract items from each response
     version_items = [pd.DataFrame(v["items"]) for v in version_responses]
     
-    #return
-    return pd.concat(version_items, ignore_index = True)
+    #concat into single df
+    version_df = pd.concat(version_items, ignore_index = True)
+    
+    #return latest version only
+    return version_df[version_df["version"] == version_df["version"].max()]
     
 #download observations from versions
 def download_observations_from_versions(version_id: str, source_df: pd.DataFrame):
@@ -172,12 +176,18 @@ def download_observations_from_versions(version_id: str, source_df: pd.DataFrame
         Exception: If a file fails to download due to a bad response or a connection error.
     """
     
+    #sleep for 10s to avoid 429 errors
+    time.sleep(10)
+    
     #filter to pertinent version
     source_df = source_df[source_df["id"] == version_id]
     
     #get downloads
     downloads = source_df["downloads"].apply(pd.Series)
     downloads = pd.concat([source_df.drop(columns = "downloads"), downloads], axis = 1)
+    if "csv" not in downloads.columns:
+        print("Skipping: 'csv' column not found in downloads DataFrame.")
+        return
     downloads = downloads[~downloads["csv"].isna()]
     
     #extract hrefs
