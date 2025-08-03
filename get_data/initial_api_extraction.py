@@ -233,6 +233,10 @@ def download_dimensions_from_versions(source_df: pd.DataFrame):
     Returns:
         pd.DataFrame: A concatenated DataFrame of all retrieved dimension codes.
     """
+    
+    #sleep for 10s to avoid 429 errors
+    time.sleep(10)
+    
     #dict to all hold code refs
     all_code_hrefs = {}
     
