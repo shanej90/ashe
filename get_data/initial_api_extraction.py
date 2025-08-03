@@ -206,7 +206,7 @@ def download_observations_from_versions(version_id: str, source_df: pd.DataFrame
             resp = requests.get(hrefs[i])
             if resp.status_code == 200:
                 #construct save path
-                save_path = f"{root}/bronze_files/{dataset_ids[i]}_{versions[i]}.csv"
+                save_path = f"{root}/bronze_files/facts/{dataset_ids[i]}_{versions[i]}.csv"
                 #write file
                 with open(save_path, "wb") as f:
                     f.write(resp.content)
@@ -252,7 +252,22 @@ def download_dimensions_from_versions(source_df: pd.DataFrame):
         hrefs = dimensions["href"].dropna().unique().tolist()
 
         #query hrefs and get edition dfs in return
-        resp_json = [requests.get(h).json() for h in hrefs]
+        resp_json = []
+        for h in hrefs:
+            try:
+                resp = requests.get(h)
+                resp.raise_for_status()  # Raises error for 4xx/5xx
+                if not resp.text.strip():
+                    print(f"[WARNING] Empty response from {h}")
+                    continue
+                data = resp.json()
+                resp_json.append(data)
+            except requests.exceptions.HTTPError as e:
+                print(f"[HTTP ERROR] {h}: {e}")
+            except requests.exceptions.JSONDecodeError as e:
+                print(f"[JSON ERROR] Failed to decode JSON from {h}: {e}")
+            except Exception as e:
+                print(f"[ERROR] Unexpected error with {h}: {e}")
         resp_dfs = [pd.DataFrame(r) for r in resp_json]
         edition_dfs = [r.loc[["editions"]] for r in resp_dfs if "editions" in r.index]
         
@@ -283,7 +298,7 @@ def download_dimensions_from_versions(source_df: pd.DataFrame):
 
         df = pd.DataFrame(code_data["items"]).drop(columns = "links", errors = "ignore")
         df["dimension"] = dim_name
-        df.to_csv(f"{root}/bronze_files/{dim_name}.csv", index = False)
+        df.to_csv(f"{root}/bronze_files/dimensions/{dim_name}.csv", index = False)
     
 #download inflation
 def download_inflation(dataset_id = "cpih01"):     
@@ -342,7 +357,7 @@ def download_inflation(dataset_id = "cpih01"):
         resp = requests.get(download_url)
         if resp.status_code == 200:
             #construct save path
-            save_path = f"{root}/bronze_files/cpih.csv"
+            save_path = f"{root}/bronze_files/dimensions/cpih.csv"
             #write file
             with open(save_path, "wb") as f:
                 f.write(resp.content)
