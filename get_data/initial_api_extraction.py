@@ -28,6 +28,9 @@ def query_ons_api(url: str) -> dict:
         Exception: If the API request fails due to connection issues or returns a non-200 status code.
     """    
     
+    #sleep for 10s to avoid 429 errors
+    time.sleep(10)
+    
     #make query and get response
     try:
         resp = requests.get(url)
