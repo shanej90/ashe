@@ -255,17 +255,20 @@ def download_dimensions_from_versions(source_df: pd.DataFrame):
         resp_json = []
         for h in hrefs:
             try:
-                resp = requests.get(h)
-                resp.raise_for_status()  # Raises error for 4xx/5xx
+                resp = requests.get(h, timeout=10)  # Add timeout for resilience
+                resp.raise_for_status()  # Catches HTTP 4xx/5xx, including 500
                 if not resp.text.strip():
                     print(f"[WARNING] Empty response from {h}")
                     continue
-                data = resp.json()
-                resp_json.append(data)
+                try:
+                    data = resp.json()
+                    resp_json.append(data)
+                except ValueError as e:
+                    print(f"[JSON ERROR] Failed to parse JSON from {h}: {e}")
             except requests.exceptions.HTTPError as e:
                 print(f"[HTTP ERROR] {h}: {e}")
-            except requests.exceptions.JSONDecodeError as e:
-                print(f"[JSON ERROR] Failed to decode JSON from {h}: {e}")
+            except requests.exceptions.RequestException as e:
+                print(f"[REQUEST ERROR] Failed to fetch {h}: {e}")
             except Exception as e:
                 print(f"[ERROR] Unexpected error with {h}: {e}")
         resp_dfs = [pd.DataFrame(r) for r in resp_json]
